@@ -19,8 +19,6 @@ namespace cuda {
       T,                                                             \
       kCudaExecutionProvider,                                        \
       KernelDefBuilder()                                             \
-          .Alias(3, 1)                                               \
-          .Alias(4, 2)                                               \
           .TypeConstraint("T", DataTypeImpl::GetTensorType<T>()),    \
       BatchNorm<T>);                                                 \
   ONNX_OPERATOR_TYPED_KERNEL_EX(                                     \
@@ -30,8 +28,6 @@ namespace cuda {
       T,                                                             \
       kCudaExecutionProvider,                                        \
       KernelDefBuilder()                                             \
-          .Alias(3, 1)                                               \
-          .Alias(4, 2)                                               \
           .TypeConstraint("T", DataTypeImpl::GetTensorType<T>()),    \
       BatchNorm<T>);
 

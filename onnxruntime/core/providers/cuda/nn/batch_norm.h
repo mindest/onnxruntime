@@ -35,6 +35,7 @@ class BatchNorm final : public CudaKernel {
     if (op_kernel_info.GetAttr<float>("momentum", &tmp_momentum).IsOK()) {
       momentum_ = static_cast<double>(tmp_momentum);
     }
+    momentum_ = 0.1;
   }
 
   Status ComputeInternal(OpKernelContext* context) const override;

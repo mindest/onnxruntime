@@ -1287,6 +1287,10 @@ common::Status InferenceSession::Initialize() {
     }
   }
 
+  // PathString path_str("/workspace/transfer/twinbert_running_after.onnx");
+  // std::remove(ToMBString(path_str).c_str());
+  // Model::Save(*model_, path_str);
+
   return status;
 }
 

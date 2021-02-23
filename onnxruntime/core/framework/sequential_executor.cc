@@ -15,6 +15,10 @@
 #include "core/framework/op_kernel_context_internal.h"
 #include "core/framework/utils.h"
 
+#include "core/util/math.h"
+#include <fstream>
+#include <iomanip>
+
 #if defined DEBUG_NODE_INPUTS_OUTPUTS
 #include "core/framework/debug_node_inputs_outputs_utils.h"
 #endif
@@ -54,6 +58,179 @@ LARGE_INTEGER perf_freq = OrtGetPerformanceFrequency();
 #endif
 
 namespace onnxruntime {
+
+static void DebugNodeInputs(OpKernelContext& context, const Node& node, const SessionState& session_state) {
+  std::map<std::string, std::vector<int>> debug_nodes = {
+      {"BatchNormalization_1138", {3, 4}},
+      // {"BatchNormalization_1138_Grad/BatchNormalizationGrad_0", {3, 4}}
+  };
+//
+  const auto it = debug_nodes.find(node.Name());
+  if (it == debug_nodes.end()) {
+    return;
+  }
+//
+  std::cout << "---- Node: " << node.Name() << ", Type: " << node.OpType() << "----\n";
+  const auto& input_defs = node.InputDefs();
+  for (size_t i = 0; i < it->second.size(); ++i) {
+    int index = it->second[i];
+    if (input_defs[index]->Exists()) {
+      std::cout << "Input " << i << " Name: " << input_defs[index]->Name();
+      const auto* type = context.InputType(index);
+      if (type) {
+        if (type->IsTensorType()) {
+          const auto& tensor = *context.Input<Tensor>(index);
+          const auto& shape = tensor.Shape();
+          std::cout << " Shape: " << shape << "\n";
+#ifdef USE_CUDA
+          auto& tensor_location = tensor.Location();
+          const auto data_type = tensor.DataType();
+          if (tensor_location.device.Type() == OrtDevice::GPU &&
+              (data_type->AsPrimitiveDataType()->GetDataType() == ONNX_NAMESPACE::TensorProto_DataType_FLOAT ||
+               data_type->AsPrimitiveDataType()->GetDataType() == ONNX_NAMESPACE::TensorProto_DataType_FLOAT16)) {
+            const auto& execution_providers = session_state.GetExecutionProviders();
+            const auto* cpu_execution_provider = execution_providers.Get(onnxruntime::kCpuExecutionProvider);
+            auto cpu_allocator = cpu_execution_provider->GetAllocator(0, OrtMemTypeDefault);
+            std::unique_ptr<Tensor> cpu_tensor = onnxruntime::make_unique<Tensor>(data_type, shape, cpu_allocator);
+            const auto& data_transfer_mgr = session_state.GetDataTransferMgr();
+            auto status = data_transfer_mgr.CopyTensor(tensor, *cpu_tensor.get(), 0);
+            if (status == common::Status::OK()) {
+              size_t num_items = shape.Size();
+              if (num_items == 0) {
+                std::cout << "no data\n";
+              } else {
+                bool more = false;
+                if (num_items > 10) {
+                  more = true;
+                  num_items = 10;
+                }
+//
+                if (data_type->AsPrimitiveDataType()->GetDataType() == ONNX_NAMESPACE::TensorProto_DataType_FLOAT) {
+                  auto float_data = cpu_tensor.get()->DataAsSpan<float>();
+                  for (size_t j = 0; j < num_items - 1; j++) {
+                    std::cout << std::setprecision(8) << float_data[j] << ", ";
+                  }
+//
+                  std::cout << std::setprecision(8) << float_data[num_items - 1];
+                } else {
+                  auto f16_data = cpu_tensor.get()->DataAsSpan<MLFloat16>();
+                  for (size_t j = 0; j < num_items - 1; j++) {
+                    std::cout << math::halfToFloat(f16_data[j].val) << ", ";
+                  }
+//
+                  std::cout << math::halfToFloat(f16_data[num_items - 1].val);
+                }
+//
+                if (more) {
+                  std::cout << ", ...";
+                }
+//
+                std::cout << std::endl;
+              }
+            } else {
+              std::cout << "Failed to transfer data to cpu.\n";
+            }
+          }
+#endif
+        } else {
+          std::cout << " is non-tensor type.\n";
+        }
+      } else {
+        // should never happen...
+        std::cout << " was missing data type\n";
+      }
+    } else {
+      std::cout << "Input " << i << " is optional and was not provided.\n";
+    }
+  }
+}
+//
+static void DebugNodeOutputs(OpKernelContext& context, const Node& node, const SessionState& session_state) {
+  std::map<std::string, std::vector<int>> debug_nodes = {
+      {"BatchNormalization_1138", {1, 2}},
+      // {"BatchNormalization_1138_Grad/BatchNormalizationGrad_0", {0, 1, 2}}
+
+  };
+//
+  const auto it = debug_nodes.find(node.Name());
+  if (it == debug_nodes.end()) {
+    return;
+  }
+//
+  std::cout << "---- Node: " << node.Name() << ", Type: " << node.OpType() << "----\n";
+  const auto& output_defs = node.OutputDefs();
+  for (size_t i = 0; i < it->second.size(); ++i) {
+    int index = it->second[i];
+    if (output_defs[index]->Exists()) {
+      std::cout << "Output " << i << " Name: " << output_defs[index]->Name();
+      const auto* type = context.OutputType(index);
+      if (type) {
+        if (type->IsTensorType()) {
+          const auto& tensor = *context.Output<Tensor>(index);
+          const auto& shape = tensor.Shape();
+          std::cout << " Shape: " << shape << "\n";
+#ifdef USE_CUDA
+          auto& tensor_location = tensor.Location();
+          const auto data_type = tensor.DataType();
+          if (tensor_location.device.Type() == OrtDevice::GPU &&
+              (data_type->AsPrimitiveDataType()->GetDataType() == ONNX_NAMESPACE::TensorProto_DataType_FLOAT ||
+               data_type->AsPrimitiveDataType()->GetDataType() == ONNX_NAMESPACE::TensorProto_DataType_FLOAT16)) {
+            const auto& execution_providers = session_state.GetExecutionProviders();
+            const auto* cpu_execution_provider = execution_providers.Get(onnxruntime::kCpuExecutionProvider);
+            auto cpu_allocator = cpu_execution_provider->GetAllocator(0, OrtMemTypeDefault);
+            std::unique_ptr<Tensor> cpu_tensor = onnxruntime::make_unique<Tensor>(data_type, shape, cpu_allocator);
+            const auto& data_transfer_mgr = session_state.GetDataTransferMgr();
+            auto status = data_transfer_mgr.CopyTensor(tensor, *cpu_tensor.get(), 0);
+            if (status == common::Status::OK()) {
+              size_t num_items = shape.Size();
+              if (num_items == 0) {
+                std::cout << "no data\n";
+              } else {
+                bool more = false;
+                if (num_items > 10) {
+                  more = true;
+                  num_items = 10;
+                }
+//
+                if (data_type->AsPrimitiveDataType()->GetDataType() == ONNX_NAMESPACE::TensorProto_DataType_FLOAT) {
+                  auto float_data = cpu_tensor.get()->DataAsSpan<float>();
+                  for (size_t j = 0; j < num_items - 1; j++) {
+                    std::cout << std::setprecision(8) << float_data[j] << ", ";
+                  }
+//
+                  std::cout << std::setprecision(8) << float_data[num_items - 1];
+                } else {
+                  auto f16_data = cpu_tensor.get()->DataAsSpan<MLFloat16>();
+                  for (size_t j = 0; j < num_items - 1; j++) {
+                    std::cout << math::halfToFloat(f16_data[j].val) << ", ";
+                  }
+//
+                  std::cout << math::halfToFloat(f16_data[num_items - 1].val);
+                }
+//
+                if (more) {
+                  std::cout << ", ...";
+                }
+//
+                std::cout << std::endl;
+              }
+            } else {
+              std::cout << "Failed to transfer data to cpu.\n";
+            }
+          }
+#endif
+        } else {
+          std::cout << " is non-tensor type.\n";
+        }
+      } else {
+        // should never happen...
+        std::cout << " was missing data type\n";
+      }
+    } else {
+      std::cout << "Input " << i << " is optional and was not provided.\n";
+    }
+  }
+}
 
 static void CalculateTotalOutputSizes(OpKernelContextInternal* op_kernel_context,
                                       size_t& total_output_sizes, const std::string& node_name) {
@@ -312,8 +489,9 @@ Status SequentialExecutor::Execute(const SessionState& session_state, const std:
           ORT_RETURN_IF_ERROR(utils::VerifyInputTensorsAllocatedContiguously(&op_kernel_context));
         }
 #endif
-
+        DebugNodeInputs(op_kernel_context, node, session_state);
         compute_status = p_op_kernel->Compute(&op_kernel_context);
+        DebugNodeOutputs(op_kernel_context, node, session_state);
       }
       ORT_CATCH(const std::exception& ex) {
         ORT_HANDLE_EXCEPTION([&]() {

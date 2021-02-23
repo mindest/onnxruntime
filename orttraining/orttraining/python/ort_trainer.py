@@ -382,6 +382,7 @@ def convert_model_loss_fn_to_onnx(model, loss_fn, model_desc, device, inputs, op
                 if name in replace_name_dict:
                     n.input[i] = replace_name_dict[name]
 
+    # onnx.save_model(onnx_model, '/workspace/transfer/onnx_graph.onnx')
     return onnx_model
 
 def create_ort_training_session_with_optimizer(model, device, training_optimizer_name, lr_params_feed_name,
