@@ -36,7 +36,7 @@ def main(args):
     parser.add_argument("-f", "--filter", type=str, default='', required=False)
     parser.set_defaults(feature=False)
     args = parser.parse_args(args)
-    run_all(args.path, args.names)
+    run_all(args.path, args.filter)
 
 
 if __name__ == '__main__':

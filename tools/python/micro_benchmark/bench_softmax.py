@@ -21,7 +21,7 @@ softmax_configs = [
                   [[2400, 12800]]
                 ],
               variable_arg_names = ['backend', 'dtype'],
-              variable_arg_vals = [['ortmodule'], ['fp16', 'fp32']],
+              variable_arg_vals = [['ortmodule', 'torch'], ['fp16', 'fp32']],
     )
 ]
 
