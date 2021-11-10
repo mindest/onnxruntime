@@ -24,7 +24,6 @@ The main idea is to rewrite functions with a wrapper subclassing `torch.nn.Modul
 
 ```py
 def add_wrapper(mod, name):
-    assert isfunc(mod, name)
     try:
         func = getattr(mod, name)
         def forward(self, *args, **kwargs):
@@ -37,7 +36,7 @@ def add_wrapper(mod, name):
         pass
 ```
 
-For example, for function `F.relu`, `add_wrapper` wraps it with a new class `relu`. Now `F.relu` points to the new class `relu`, but other settings are kept.
+For example, for function `F.relu`, `add_wrapper` wraps it with a new class `relu`. Now `F.relu` points to an instance of the new class `relu`, but other settings are kept.
 
 ### usage
 
