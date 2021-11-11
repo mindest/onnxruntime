@@ -2,6 +2,7 @@ import copy
 import csv
 import os
 import torch
+import itertools
 
 def op_benchmarks(benchmarks):
     """A function decorator for benchmarking. The benchmark can then be executed by `.run` method on the return value.
@@ -47,29 +48,25 @@ class BenchmarkRunner:
         self.fn = fn
         self.benchmarks = benchmarks
 
-    def _dfs_variable_combinations(self, bench, combination_list, depth=0, variable_argument_dict={}):
-        is_last_variable = (depth == len(bench.variable_arg_names) - 1)
-        current_variable_value_count = len(bench.variable_arg_vals[depth])
-        current_variable_value_index = 0
-        while current_variable_value_index < current_variable_value_count:
-            variable_argument_dict[bench.variable_arg_names[depth]] = bench.variable_arg_vals[depth][current_variable_value_index]
-            if is_last_variable is True:
-                # ret = fn(**x_args, **variable_argument_dict)
-                combination_list.append(copy.deepcopy(variable_argument_dict))
-            else:
-                self._dfs_variable_combinations(bench, combination_list, depth + 1, variable_argument_dict)
-
-            del variable_argument_dict[bench.variable_arg_names[depth]]
-            current_variable_value_index += 1
+    def _generate_variable_combinations(self, bench):
+        names = bench.variable_arg_names
+        vals = bench.variable_arg_vals
+        settings = []
+        for name, val in zip(names, vals):
+            setting = []
+            for v in val:
+                setting.append((name, v))
+            settings.append(setting)
+        cartesian_prod = itertools.product(*settings)
+        return [dict(prod) for prod in cartesian_prod]
 
     def _run(self, bench, save_path):
-        combination_list = []
-        self._dfs_variable_combinations(bench, combination_list)
+        combination_list = self._generate_variable_combinations(bench)
         print(f"all combinations listed as below: ", combination_list)
 
         table_body = []
         stat_names = None
-        for input_shapes_index, input_shapes in enumerate(bench.input_shapes):
+        for input_shapes in bench.input_shapes:
             assert len(input_shapes) == len(bench.input_names)
             input_args = {}
             row_data_cells = []
@@ -129,7 +126,7 @@ def run_op_benchmark(fn, warmup_step=25, repeat_step=100,
     torch.cuda.synchronize()
 
     # We maintain a buffer of 256 MB that we clear before each kernel call to make sure that the L2
-    # doesn't contain any input data before the run. (we don't want the potentially L2 cached input 
+    # doesn't contain any input data before the run. (we don't want the potentially L2 cached input
     # affect the overall latency)
     start_event = [torch.cuda.Event(enable_timing=True) for i in range(repeat_step)]
     end_event = [torch.cuda.Event(enable_timing=True) for i in range(repeat_step)]
