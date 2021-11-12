@@ -1,6 +1,6 @@
 import torch
 import numpy as np
-from _common import BenchmarkDef, op_benchmarks, run_op_benchmark
+from _common import BenchmarkConfig, op_benchmarks, run_op_benchmark, VisualConfig
 from _data import InputGenerator, LazyInputDesc, ConcreteInputDesc
 
 # -------------------------------
@@ -8,20 +8,22 @@ from _data import InputGenerator, LazyInputDesc, ConcreteInputDesc
 # -------------------------------
 
 repeat_configs = [
-    BenchmarkDef(
+    BenchmarkConfig(
         input_generator = InputGenerator({
             "input_1" : LazyInputDesc(input_shapes=[[1, 64, 16, 32]], dtypes=[np.float32]), 
             "repeats" : ConcreteInputDesc([np.array([2, 1, 16, 1], dtype=np.int32)])
         }),
-        variable_arg_names = ['backend', 'mode'],
-        variable_arg_vals = [['ortmodule', 'torch'], ['fp16', 'fp32']]
+        variable_names = ['backend', 'mode'],
+        variable_values_pool = [['ortmodule', 'torch'], ['fp16', 'fp32']]
     )
 ]
 
-@op_benchmarks(repeat_configs)
+visual_config = None #VisualConfig(pivot_variable_name = 'backend', pivot_varible_control_value = 'torch')
+
+@op_benchmarks(repeat_configs, visual_config)
 def bench_repeat(input_1, repeats, backend, mode):
     with torch.no_grad():
-        input_data_on_cuda = input_1.cuda()
+        input_data_on_cuda = torch.from_numpy(input_1).cuda()
     class TileNet(torch.nn.Module):
         def forward(self, x):
             x = x.repeat(*repeats)

@@ -1,6 +1,6 @@
 import torch
 import numpy as np
-from _common import BenchmarkDef, op_benchmarks, run_op_benchmark
+from _common import BenchmarkConfig, op_benchmarks, run_op_benchmark
 from _data import InputGenerator, LazyInputDesc, ConcreteInputDesc
 
 # -------------------------------
@@ -8,7 +8,7 @@ from _data import InputGenerator, LazyInputDesc, ConcreteInputDesc
 # -------------------------------
 
 softmax_configs = [
-    BenchmarkDef(
+    BenchmarkConfig(
         input_generator = InputGenerator({
             "input_1" : LazyInputDesc(
                 input_shapes=[
@@ -23,15 +23,15 @@ softmax_configs = [
                 ]
             ), 
         }),
-        variable_arg_names = ['backend', 'mode'],
-        variable_arg_vals = [['ortmodule'], ['fp16', 'fp32']]
+        variable_names = ['backend', 'mode'],
+        variable_values_pool = [['ortmodule'], ['fp16', 'fp32']]
     )
 ]
 
 @op_benchmarks(softmax_configs)
 def bench_softmax(input_1, backend, mode):
     with torch.no_grad():
-        input_data_on_cuda = input_1.cuda()
+        input_data_on_cuda = torch.from_numpy(input_1).cuda()
 
     class SoftmaxNet(torch.nn.Module):
         def __init__(self):
