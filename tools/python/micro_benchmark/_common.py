@@ -91,7 +91,7 @@ class BenchmarkRunner:
         for bench in benchmarks:
             self._run(bench, save_path)
 
-def run_op_benchmark(fn, warmup_step=25, repeat_step=100,
+def run_op_benchmark(fn, extract_kernel_info=False, warmup_step=25, repeat_step=100,
                      grad_to_none=None, percentiles=[0.5, 0.2, 0.8]):
     """Run operator computation representation fn `repeat_step` times, and generate kernel latency statistics.
 
@@ -123,6 +123,23 @@ def run_op_benchmark(fn, warmup_step=25, repeat_step=100,
     end_event = [torch.cuda.Event(enable_timing=True) for i in range(repeat_step)]
     cache = torch.empty(int(256e6), dtype=torch.int8, device='cuda')
 
+    # PyTorch Profiler profiling steps
+    if extract_kernel_info:
+        print("PyTorch Profiler profiling...")
+        from torch.profiler import profile, ProfilerActivity, schedule
+        import json
+        from tempfile import NamedTemporaryFile
+        with profile(activities=[ProfilerActivity.CUDA], schedule=schedule(wait=1, warmup=1, active=1)) as prof:
+            for _ in range(3):
+                fn()
+                prof.step()
+        with NamedTemporaryFile('w+t') as f:
+            # Export tracing info to a temp JSON file and parse kernel info.
+            # Temp file is auto-deleted afterwards.
+            prof.export_chrome_trace(f.name)
+            tracing_events = json.load(open(f.name))['traceEvents']
+        kernel_events = [evt for evt in tracing_events if 'cat' in evt and evt['cat'] == 'Kernel']
+
     # warm up
     print(f"warming up now....")
     for _ in range(warmup_step):
@@ -148,6 +165,10 @@ def run_op_benchmark(fn, warmup_step=25, repeat_step=100,
 
     ret = {}
     ret["mean"] = torch.mean(times).item()
+    if extract_kernel_info and len(kernel_events) > 0:
+        ret['kernel'] = [
+            f'{evt["name"]}, grid {evt["args"]["grid"]}, block {evt["args"]["block"]}, dur {evt["dur"]}us' \
+                for evt in kernel_events]
     if percentiles:
         percentiles_rets = torch.quantile(times, torch.tensor(percentiles)).tolist()
         for index, r in enumerate(percentiles_rets):
