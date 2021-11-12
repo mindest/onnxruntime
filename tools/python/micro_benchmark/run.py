@@ -3,41 +3,45 @@ import sys
 import os
 import inspect
 from _common import BenchmarkRunner
+from _visual import show_benchmark_reports
 
+def run_benchmarks(save_dir, name_filter):
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
 
-def run_all(result_dir, names):
-    if not os.path.exists(result_dir):
-        os.makedirs(result_dir)
-    for mod in os.listdir(os.path.dirname(os.path.realpath(__file__))):
-        # skip non python files
-        if not mod.endswith('.py'):
+    bench_dir = os.path.dirname(os.path.realpath(__file__))
+    bench_report_save_dirs = []
+    for filename in os.listdir(bench_dir):
+        if not filename.endswith('.py') or not filename.startswith('bench_'):
             continue
-        # skip file not in provided names
-        if names and names not in mod:
+
+        # filter out the cases to run based on passed in 'name_filter' argument.
+        if name_filter and name_filter not in filename:
             continue
-        # skip files that don't start with 'bench_'
-        if not mod.startswith('bench_'):
-            continue
-        print(f'running {mod}...')
-        mod = __import__(os.path.splitext(mod)[0])
+
+        print(f'running {filename}...')
+        mod = __import__(os.path.splitext(filename)[0])
         benchmarks = inspect.getmembers(mod, lambda x: isinstance(x, BenchmarkRunner))
+
         for name, bench in benchmarks:
-            curr_dir = os.path.join(result_dir, mod.__name__.replace('bench_', ''))
-            if len(benchmarks) > 1:
-                curr_dir = os.path.join(curr_dir, name.replace('bench_', ''))
-            if not os.path.exists(curr_dir):
-                os.makedirs(curr_dir)
-            bench.run(save_path=curr_dir)
+            save_dir_for_this_bench = os.path.join(save_dir, mod.__name__)
+            save_dir_for_this_bench = os.path.join(save_dir_for_this_bench, name)
+            if not os.path.exists(save_dir_for_this_bench):
+                os.makedirs(save_dir_for_this_bench)
+            bench.run(save_path=save_dir_for_this_bench)
+            bench_report_save_dirs.append(save_dir_for_this_bench)
+
+    return bench_report_save_dirs
 
 
 def main(args):
     parser = argparse.ArgumentParser(description="Run the benchmark suite.")
-    parser.add_argument("-p", "--path", type=str, default='', required=False)
+    parser.add_argument("-d", "--save_dir", type=str, default='./', required=False)
     parser.add_argument("-f", "--filter", type=str, default='', required=False)
-    parser.set_defaults(feature=False)
-    args = parser.parse_args(args)
-    run_all(args.path, args.filter)
 
+    args = parser.parse_args(args)
+    bench_report_save_dirs = run_benchmarks(args.save_dir, args.filter)
+    show_benchmark_reports(bench_report_save_dirs)
 
 if __name__ == '__main__':
     main(sys.argv[1:])

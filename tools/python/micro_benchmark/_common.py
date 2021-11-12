@@ -1,9 +1,9 @@
 import copy
-import csv
 import numpy as np
 import os
 import torch
 import itertools
+from _visual import write_to_csv
 
 def op_benchmarks(benchmarks):
     """A function decorator for benchmarking. The benchmark can then be executed by `.run` method on the return value.
@@ -68,7 +68,7 @@ class BenchmarkRunner:
             input_args = {}
             row_data_cells = []
             for input_name, input_value in input_name_value_pair:
-                row_data_cells.append(input_value.shape)
+                row_data_cells.append(list(input_value.shape))
                 input_args[input_name] = input_value
 
             for one_variables_combination in combination_list:
@@ -82,14 +82,8 @@ class BenchmarkRunner:
 
         table_header = list(combination_list[0].keys()) + bench.input_generator.input_names + stat_names
 
-        self.write_to_csv(table_header, table_body, csv_path=os.path.join(save_path, f"perf_stat.csv"))
-
-    def write_to_csv(self, header, data, csv_path='perf_stat.csv'):
-        print("benchmark stat file written to {} ...".format(csv_path))
-        with open(csv_path, 'w', newline='') as f:
-            writer = csv.writer(f)
-            writer.writerow(header)
-            writer.writerows(data)
+        if save_path:
+            write_to_csv(table_header, table_body, csv_path=os.path.join(save_path, f"perf_stat.csv"))
 
     def run(self, save_path=''):
         has_single_bench = isinstance(self.benchmarks, BenchmarkDef)
@@ -153,10 +147,10 @@ def run_op_benchmark(fn, warmup_step=25, repeat_step=100,
     times = torch.tensor([s.elapsed_time(e) for s, e in zip(start_event, end_event)])
 
     ret = {}
-    ret["mean (ms)"] = torch.mean(times).item()
+    ret["mean"] = torch.mean(times).item()
     if percentiles:
         percentiles_rets = torch.quantile(times, torch.tensor(percentiles)).tolist()
         for index, r in enumerate(percentiles_rets):
-            ret["p{} (ms)".format(percentiles[index])] = r
+            ret["p{}".format(percentiles[index])] = r
 
     return ret
