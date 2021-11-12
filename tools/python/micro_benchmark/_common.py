@@ -56,7 +56,7 @@ class VisualConfig:
 
     @property
     def is_valid(self):
-        return self.visual_config.pivot_variable_name and self.visual_config.pivot_varible_control_value
+        return self.pivot_variable_name and self.pivot_varible_control_value
 
 class StatItem:
     """
@@ -147,18 +147,8 @@ class BenchmarkRunner:
         return stats
 
     def _save_stats(self, save_path, stats):
-        header = None
-        statistic_value_count = None
-        body = []
         postfix = f'raw_perf_stat.pkl'
-        for stat in stats:
-            if header is None:
-                header = stat.input_names + stat.variable_names + stat.statistic_names
-                statistic_value_count = len(stat.statistic_names)
-            body.append({
-                "input_values" : stat.input_values, "variable_values": stat.variable_values,
-                "statistic_values": stat.statistic_values})
-        persistent_stats(header, body, self.visual_config, statistic_value_count, file_path=os.path.join(save_path, postfix))
+        persistent_stats(stats, self.visual_config, file_path=os.path.join(save_path, postfix))
 
     def run(self, save_path=''):
         has_single_bench = isinstance(self.benchmark_configs, BenchmarkConfig)

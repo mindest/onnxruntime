@@ -1,6 +1,6 @@
 import torch
 import numpy as np
-from _common import BenchmarkConfig, op_benchmarks, run_op_benchmark
+from _common import BenchmarkConfig, op_benchmarks, run_op_benchmark, VisualConfig
 from _data import InputGenerator, LazyInputDesc, ConcreteInputDesc
 
 # -------------------------------
@@ -24,11 +24,13 @@ softmax_configs = [
             ), 
         }),
         variable_names = ['backend', 'mode'],
-        variable_values_pool = [['ortmodule'], ['fp16', 'fp32']]
+        variable_values_pool = [['ortmodule', 'torch'], ['fp16', 'fp32']]
     )
 ]
 
-@op_benchmarks(softmax_configs)
+visual_config = VisualConfig(pivot_variable_name='backend', pivot_varible_control_value='torch')
+
+@op_benchmarks(softmax_configs, visual_config)
 def bench_softmax(input_1, backend, mode):
     with torch.no_grad():
         input_data_on_cuda = torch.from_numpy(input_1).cuda()

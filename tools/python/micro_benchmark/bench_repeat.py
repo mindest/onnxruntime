@@ -18,7 +18,7 @@ repeat_configs = [
     )
 ]
 
-visual_config = None #VisualConfig(pivot_variable_name = 'backend', pivot_varible_control_value = 'torch')
+visual_config = VisualConfig(pivot_variable_name='backend', pivot_varible_control_value='torch')
 
 @op_benchmarks(repeat_configs, visual_config)
 def bench_repeat(input_1, repeats, backend, mode):
