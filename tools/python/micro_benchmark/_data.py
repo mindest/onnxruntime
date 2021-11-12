@@ -86,7 +86,6 @@ def persistent_stats(stats, visual_config, file_path='perf_stat.csv'):
         body = []
 
         for stat in stats:
-            print(stat.input_values)
             if header is None:
                 header = {
                     'input_names': stat.input_names,
