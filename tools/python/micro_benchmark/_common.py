@@ -1,5 +1,6 @@
 import copy
 import csv
+import numpy as np
 import os
 import torch
 
@@ -19,20 +20,17 @@ class BenchmarkDef:
     """
     def __init__(
         self,
-        input_names,
-        input_shapes,
+        input_generator,
         variable_arg_names,
         variable_arg_vals,
     ):
         """
         Args:
-            input_names (list of string): The input data names.
-            input_shapes (list of input shapes): The input data shapes.
+            input_generator (lamda to return a list of input_values): A function to generate all input data values.
             variable_arg_names (list string): The argument name of variables in this run.
             variable_arg_vals (list of any type): All possible values of the variables in this run.
         """
-        self.input_names = input_names
-        self.input_shapes = input_shapes
+        self.input_generator = input_generator
 
         self.variable_arg_names = variable_arg_names
         self.variable_arg_vals = variable_arg_vals
@@ -69,13 +67,12 @@ class BenchmarkRunner:
 
         table_body = []
         stat_names = None
-        for input_shapes_index, input_shapes in enumerate(bench.input_shapes):
-            assert len(input_shapes) == len(bench.input_names)
+        for input_name_value_pair in bench.input_generator:
             input_args = {}
             row_data_cells = []
-            for input_name_index, input_name in enumerate(bench.input_names):
-                input_args[input_name] = input_shapes[input_name_index]
-                row_data_cells.append(input_shapes[input_name_index])
+            for input_name, input_value in input_name_value_pair:
+                row_data_cells.append(input_value.shape)
+                input_args[input_name] = input_value
 
             for one_variables_combination in combination_list:
                 row_body = list(one_variables_combination.values())
@@ -86,7 +83,7 @@ class BenchmarkRunner:
                     stat_names = list(rets.keys())
                 table_body.append(row_body)
 
-        table_header = list(combination_list[0].keys()) + bench.input_names + stat_names
+        table_header = list(combination_list[0].keys()) + bench.input_generator.input_names + stat_names
 
         self.write_to_csv(table_header, table_body, csv_path=os.path.join(save_path, f"perf_stat.csv"))
 

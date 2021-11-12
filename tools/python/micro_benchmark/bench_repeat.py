@@ -4,45 +4,30 @@ from _common import BenchmarkDef, op_benchmarks, run_op_benchmark
 from _data import InputGenerator, LazyInputDesc, ConcreteInputDesc
 
 # -------------------------------
-# softmax  benchmark 
+# torch.repeat (aka ONNX Expand + Tile) benchmark 
 # -------------------------------
 
-softmax_configs = [
+repeat_configs = [
     BenchmarkDef(
         input_generator = InputGenerator({
-            "input_1" : LazyInputDesc(
-                input_shapes=[
-                    [2400, 128], [2400, 256], [2400, 512], [2400, 1024],
-                    [2400, 2048], [2400, 3072], [2400, 4096],
-                    [2400, 6144], [2400, 12800]
-                ],
-                dtypes=[
-                    np.float32, np.float32, np.float32, np.float32,
-                    np.float32, np.float32, np.float32,
-                    np.float32, np.float32,
-                ]
-            ), 
+            "input_1" : LazyInputDesc(input_shapes=[[1, 64, 16, 32]], dtypes=[np.float32]), 
+            "repeats" : ConcreteInputDesc([np.array([2, 1, 16, 1], dtype=np.int32)])
         }),
         variable_arg_names = ['backend', 'mode'],
-        variable_arg_vals = [['ortmodule'], ['fp16', 'fp32']]
+        variable_arg_vals = [['ortmodule', 'torch'], ['fp16', 'fp32']]
     )
 ]
 
-@op_benchmarks(softmax_configs)
-def bench_softmax(input_1, backend, mode):
+@op_benchmarks(repeat_configs)
+def bench_repeat(input_1, repeats, backend, mode):
     with torch.no_grad():
         input_data_on_cuda = input_1.cuda()
-
-    class SoftmaxNet(torch.nn.Module):
-        def __init__(self):
-            super(SoftmaxNet, self).__init__()
-            self.m = torch.nn.Softmax(dim=1)
-
+    class TileNet(torch.nn.Module):
         def forward(self, x):
-            x = self.m(x)
+            x = x.repeat(*repeats)
             return x
 
-    net = SoftmaxNet()
+    net = TileNet()
     net.cuda()
 
     if mode == 'fp16':
