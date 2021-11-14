@@ -111,7 +111,7 @@ def load_stats(filename):
         for row in tbl['data']:
             all_statistic_values.extend(row["statistic_values"])
         percentile_0_8 = float(np.percentile(all_statistic_values, 80))
-        unit = 'ms' if percentile_0_8 > 1.0 else 'us'
+        unit, scale = tuple(['ms', 1.0]) if percentile_0_8 > 1.0 else tuple(['us', 1000.0])
 
         visual_config = tbl['visual_config']
         if visual_config and visual_config.is_valid:
@@ -133,6 +133,8 @@ def load_stats(filename):
 
                 flattened_row.pop(len(row['input_values']) + pivot_idx)
                 sub_key = '_'.join(flattened_row)
+                row['statistic_values'] = [s_v * scale for s_v in row['statistic_values']]
+
                 group_by_pivot[pivot_value][sub_key] = row
 
             control = visual_config.pivot_varible_control_value

@@ -5,7 +5,9 @@ import numpy as np
 from _data import persistent_stats
 
 def op_benchmarks(benchmark_configs, visual_config=None):
-    """A function decorator for benchmarking. The benchmark can then be executed by `.run` method on the return value.
+    """
+    A function decorator for benchmarking. The benchmark can then be executed by `.run` 
+    method on the return value.
 
     Args:
         benchmarks (list of BenchmarkConfig): Benchmarking configurations.
@@ -26,9 +28,12 @@ class BenchmarkConfig:
     ):
         """
         Args:
-            input_generator (lamda to return a list of input_values): A function to generate all input data values.
-            variable_names (list string): The argument name of variables in this run.
-            variable_values_pool (list of any type): All possible values of the variables in this run.
+            input_generator (lamda to return a list of input_values):
+                A function to generate all input data values.
+            variable_names (list string):
+                The argument name of variables in this run.
+            variable_values_pool (list of any type):
+                All possible values of the variables in this run.
         """
         self.input_generator = input_generator
 
@@ -48,8 +53,10 @@ class VisualConfig:
     ):
         """
         Args:
-            pivot_variable_name (string): The variable we planned to use as comparasion pivot.
-            pivot_varible_control_value (string): The value we take as baseline to do the compare.
+            pivot_variable_name (string):
+                The variable we planned to use as comparasion pivot.
+            pivot_varible_control_value (string):
+                The value we take as baseline to do the compare.
         """
         self.pivot_variable_name = pivot_variable_name
         self.pivot_varible_control_value = pivot_varible_control_value
