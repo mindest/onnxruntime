@@ -57,6 +57,6 @@ def bench_softmax(input_1, backend, mode):
         from onnxruntime.training.ortmodule import ORTModule
         net = ORTModule(net)
         # gbps = lambda ms: (2 * a.numel() * a.element_size() * 1e-9) / (ms * 1e-3)
-        return run_op_benchmark(lambda: net(input_data_on_cuda))
+        return run_op_benchmark(lambda: net(input_data_on_cuda), extract_kernel_info=True)
     elif backend == 'torch':
-        return run_op_benchmark(lambda: net(input_data_on_cuda))
+        return run_op_benchmark(lambda: net(input_data_on_cuda), extract_kernel_info=True)

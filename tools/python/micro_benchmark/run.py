@@ -10,7 +10,7 @@ def run_benchmarks(save_dir, name_filter):
         os.makedirs(save_dir)
 
     bench_dir = os.path.dirname(os.path.realpath(__file__))
-    bench_report_save_dirs = []
+    bench_reports = []
     for filename in os.listdir(bench_dir):
         if not filename.endswith('.py') or not filename.startswith('bench_'):
             continue
@@ -29,9 +29,9 @@ def run_benchmarks(save_dir, name_filter):
             if not os.path.exists(save_dir_for_this_bench):
                 os.makedirs(save_dir_for_this_bench)
             bench.run(save_path=save_dir_for_this_bench)
-            bench_report_save_dirs.append(save_dir_for_this_bench)
+            bench_reports.append([save_dir_for_this_bench, bench.visual_config])
 
-    return bench_report_save_dirs
+    return bench_reports
 
 
 def main(args):
@@ -40,8 +40,8 @@ def main(args):
     parser.add_argument("-f", "--filter", type=str, default='', required=False)
 
     args = parser.parse_args(args)
-    bench_report_save_dirs = run_benchmarks(args.save_dir, args.filter)
-    show_benchmark_reports(bench_report_save_dirs)
+    bench_reports = run_benchmarks(args.save_dir, args.filter)
+    show_benchmark_reports(bench_reports)
 
 if __name__ == '__main__':
     main(sys.argv[1:])

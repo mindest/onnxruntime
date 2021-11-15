@@ -3,6 +3,7 @@ import torch
 import itertools
 import numpy as np
 from _data import persistent_stats
+import copy
 
 def op_benchmarks(benchmark_configs, visual_config=None):
     """
@@ -65,59 +66,152 @@ class VisualConfig:
     def is_valid(self):
         return self.pivot_variable_name and self.pivot_varible_control_value
 
-class StatItem:
+class StatisticItem:
     """
-    This class is used to represent the statistics for a fine-grained run at the minimum unit.
-        (e.g. one fixed dataset + one of the `variable combinatations`).
+    This class is used to represent one single entry of statistic.
 
     """
     def __init__(
         self,
-        variable_combination,
-        input_combination,
-        statistic_dict
+        value,
+        is_diffable = True
     ):
         """
         Args:
-            variable_combination (dict <str, any type>): Contains the concrete values for each variable.
-            input_combination (dict <str, numpy value>): Contains the concrete inputs for each input.
-            statistic_dict (dict <str, float>): The statistics returned by benchmark run.
+            value (any type): statistic value (usually is a float).
+            is_diffable (bool): whether this statistic value can be diff-able in comparision mode.
         """
-        self.variable_combination = variable_combination
-        self.input_combination = {}
-        for input_name, input_value in input_combination.items():
-            # TODO: refine this when we need show initial N elements to distinguish given concrete input values.
-            self.input_combination[input_name] = str(list(input_value.shape)) + "-" + str(input_value.dtype) 
+        self._value = value
+        self._is_diffable = is_diffable
 
-        self.statistic_dict = statistic_dict
+class RetRecordName:
+    """
+    This class is used to represent one single column properties.
+
+    """
+    def __init__(self, name, is_input=False, is_variable=False, is_statistic=False, is_diffable=False):
+        self._name = name
+        self._is_input = is_input
+        self._is_variable = is_variable
+        self._is_statistic = is_statistic
+        self._is_diffable = is_diffable
+
+    def __str__(self):
+        return 'name: {}, _is_input: {}, _is_variable: {}, _is_statistic: {}, _is_diffable: {}'.format(
+            self._name, self._is_input, self._is_variable, self._is_statistic, self._is_diffable
+        )
+
+class RetRecordNameSet:
+    """
+    This class is used to be containers of multiple `RetRecordName`s 
+
+    """
+    def __init__(self):
+        self._name_set = []
+
+    def extend(self, record_names):
+        self._name_set.extend(record_names)
+
+    def __iter__(self):
+        for n in self._name_set:
+            yield n
+
+class RetRecordValue:
+    """
+    This class is used to represent one single column value.
+
+    """
+    def __init__(
+        self,
+        value,
+    ):
+        self._value = value
+
+    def __str__(self):
+        return '_value: {}'.format(self._value)
+
+
+class RetRecordValueSet:
+    """
+    This class is used to be containers of multiple `RetRecordValue`s 
+
+    """
+    def __init__(self):
+        self._value_set = []
+
+    def extend(self, record_values):
+        self._value_set.extend(record_values)
+
+    def append(self, record_value):
+        self._value_set.append(record_value)
+
+    def __iter__(self):
+        for _, v in enumerate(self._value_set):
+            yield v
+
+class RunRets:
+    """
+    This class is used to manage column names and all comulmn values for one benchmark run.
+
+    """
+    def __init__(
+        self
+    ):
+        # record keys
+        self._record_names = None
+
+        # record values
+        self._record_values = []
+
+        self._is_initialized = False
+
+    def append(self, input_combination, variable_combination, statistic_items_in_dict):
+        if not self._is_initialized:
+            self._record_names = RetRecordNameSet()
+            self._record_names.extend(
+                list(RetRecordName(input_name, is_input=True) for input_name in input_combination.keys())
+            )
+
+            self._record_names.extend(
+                list(RetRecordName(variable_name, is_variable=True) for variable_name in variable_combination.keys())
+            )
+
+            self._record_names.extend(
+                list(RetRecordName(statistic_name, is_statistic=True, is_diffable=item._is_diffable)
+                    for statistic_name, item in statistic_items_in_dict.items())
+            )
+
+        new_record_values = RetRecordValueSet()
+        for record_name in self._record_names:
+            if record_name._name in input_combination:
+                assert record_name._is_input == True
+                new_record_values.append(RetRecordValue(input_combination[record_name._name]))
+            elif record_name._name in variable_combination:
+                assert record_name._is_variable == True
+                new_record_values.append(RetRecordValue(variable_combination[record_name._name]))
+            elif record_name._name in statistic_items_in_dict.keys():
+                assert record_name._is_statistic == True
+                new_record_values.append(RetRecordValue(statistic_items_in_dict[record_name._name]._value))
+            else:
+                raise ValueError('find input name mismatch')
+
+        self._record_values.append(new_record_values)
+
+        if not self._is_initialized:
+            self._is_initialized = True
 
     @property
-    def input_names(self):
-        return list(self.input_combination.keys())
+    def record_names(self):
+        return copy.deepcopy(self._record_names)
 
-    @property
-    def input_values(self):
-        return list(self.input_combination.values())
+    def iterator(self):
+        for values in self._record_values:
+            yield {n : v for n, v in zip(self._record_names, values)}.items()
 
-    @property
-    def variable_names(self):
-        return list(self.variable_combination.keys())
-
-    @property
-    def variable_values(self):
-        return list(self.variable_combination.values())
-
-    @property
-    def statistic_names(self):
-        return list(self.statistic_dict.keys())
-
-    @property
-    def statistic_values(self):
-        return list(self.statistic_dict.values())
 
 class BenchmarkRunner:
     """
-    The class manages the benchmark running, result analysis.
+    The class manages the benchmark running, result saving.
 
     """
     def __init__(self, fn, benchmark_configs, visual_config):
@@ -141,21 +235,21 @@ class BenchmarkRunner:
         combination_list = self._generate_variable_combinations(bench)
         print(f"all combinations listed as below: ", combination_list)
 
-        stats = []
+        run_rets = RunRets()
         for input_name_value_pair in bench.input_generator:
             input_args = {}
             for input_name, input_value in input_name_value_pair:
                 input_args[input_name] = input_value
 
             for one_variables_combination in combination_list:
-                rets = self.fn(**input_args, **one_variables_combination)
-                stats.append(StatItem(one_variables_combination, input_args, rets))
+                ret_in_dict = self.fn(**input_args, **one_variables_combination)
+                run_rets.append(input_args, one_variables_combination, ret_in_dict)
 
-        return stats
+        return run_rets
 
     def _save_stats(self, save_path, stats):
         postfix = f'raw_perf_stat.pkl'
-        persistent_stats(stats, self.visual_config, file_path=os.path.join(save_path, postfix))
+        persistent_stats(stats, file_path=os.path.join(save_path, postfix))
 
     def run(self, save_path=''):
         has_single_bench = isinstance(self.benchmark_configs, BenchmarkConfig)
@@ -163,8 +257,8 @@ class BenchmarkRunner:
 
         aggregated_stats = []
         for bench in benchmarks:
-            stats = self._run(bench)
-            aggregated_stats.extend(stats)
+            run_rets = self._run(bench)
+            aggregated_stats.append(run_rets)
 
         self._save_stats(save_path, aggregated_stats)
 
@@ -245,15 +339,16 @@ def run_op_benchmark(fn, extract_kernel_info=False, warmup_step=25, repeat_step=
     torch.cuda.synchronize()
     times = torch.tensor([s.elapsed_time(e) for s, e in zip(start_event, end_event)])
 
-    ret = {}
-    ret["mean"] = torch.mean(times).item()
+    ret = {'mean' : StatisticItem(torch.mean(times).item())}
     if extract_kernel_info and len(kernel_events) > 0:
-        ret['kernel'] = [
-            f'{evt["name"]}, grid {evt["args"]["grid"]}, block {evt["args"]["block"]}, dur {evt["dur"]}us' \
-                for evt in kernel_events]
+        kernel_sv = StatisticItem( 
+            [f'{evt["name"]}, grid {evt["args"]["grid"]}, block {evt["args"]["block"]}, dur {evt["dur"]}us'
+                for evt in kernel_events
+            ], is_diffable=False)
+        ret['kernel'] = kernel_sv
     if percentiles:
         percentiles_rets = torch.quantile(times, torch.tensor(percentiles)).tolist()
         for index, r in enumerate(percentiles_rets):
-            ret["p{}".format(percentiles[index])] = r
+            ret['p{}'.format(percentiles[index])] = StatisticItem(r)
 
     return ret
